@@ -1,0 +1,168 @@
+---
+title: "Midterm One"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+```
+
+In this midterm we will analyze some data on the conservation status of species in North America and spending under the Endangered Species Act. 
+
+Answer the following questions by using chunks of R code. Comment on what your code does. Make sure to add informative axis titles and, where appropriate, units to your answers. Upload the R markdown file and knitted output to Canvas. 
+
+We will use the file `conservationdata.csv`. This dataset has information on North American species. It has five variables that are described in the table below.
+
+
+```{r, echo=FALSE}
+tab <- cbind(Name=c("speciesid", "speciesname", "taxon", "conservation status", "listed"), Description = c("unique ID", "scientific name", "Species group", "Conservation status in North America, according to   [NatureServe](https://www.natureserve.org/conservation-tools/conservation-rank-calculator): 1 = Critically Imperiled; 2 = Imperiled; 3 = Vulnerable; 4 = Apparently Secure; 5 = Secure; UNK = Unknown; Prob. Extinct = Probably Extinct; Extinct", "Is the species listed as threatened or endangered under the US Endangered Species Act: 0 = No; 1 = Yes"))
+
+knitr::kable(tab, caption ='Table 1. Variables in "consevationdata.csv"' )
+```
+
+
+Read the file `conservationdata.csv`
+
+conservationdata <-read.csv("/Users/sally/Desktop/conservationdata.csv")
+
+1. What fraction of species in the dataset are listed under the Endangered Species Act? (2 points)
+
+#counting the number of species listed under endangered species
+endangered_count <- sum(conservationdata$ESA == "Endangered")
+
+#calculating the fraction
+total_species <- nrow(conservationdata)
+fraction_endangered <- endangered_count / total_species
+
+#displaying it in fraction
+fraction_endangered
+
+2. Show how many (absolute and relative) species there are for each taxonomic group by making a data.frame in which the first column has the taxonomic groups, the second column is the number of species in that group, and the third column is the percentage of all species in that group.
+
+#each taxonomic group occurences
+taxonomic_counts <- table(conservationdata$Taxonomic_group)
+
+#percenteage of species in a group
+percentage_species <- prop.table(taxonomic_counts) * 100
+
+#creating the data frame
+taxonomic_data <- data.frame(
+  Taxonomic_group = names(taxonomic_counts),
+  Number_of_species = as.vector(taxonomic_counts),
+  Percentage_of_species = as.vector(percentage_species)
+)
+
+taxonomic_data
+
+3a) One interesting question is how the conservation status varies between different taxonomic groups. Make a plot showing the relative distribution of conservation status within each taxonomic group. There should be descriptive legend (with words, not with the numeric codes) (3 points)
+
+You can use a "base" plotting method, or ggplot. 
+
+If you are using ggplot, stat="count" (counts up and plots the number of observations, i.e. species, within each group) and position="fill" might both be useful.
+library(ggplot2)
+
+#defining the ggplot 
+p <- ggplot(conservationdata, aes(x = taxon, fill = conservation_status)) +
+  geom_bar(position = "fill") +
+  labs(x = "Taxonomic Group", y = "Proportion of Species", fill = "Conservation Status") +
+  scale_fill_discrete(name = "Conservation Status",
+                      labels = c("Least Concern", "Endangered", "Vulnerable", "Near Threatened", "Critically Endangered")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(p)
+
+
+
+
+3b) Based on this graph, what is something we might be concerned about in terms of analyzing the data on conservation status, particularly for fungi and invertebrates? (1 point)
+
+**There is lack of representation on conservation statuses for fungi and invertebrates. In the graph, we can see the majority (0.75) of Fungi and (0.45) of Invertebrates as N/A conservation status. This could indicate potential under representation or lack of conservation efforts.**
+
+Read in the second data file: `spendingdata.csv`
+
+This dataset has a species ID that matches the species ID in the conservation dataset (speciesid), year, and the spending on conservation of that species (expressed in in 2015 dollars, i.e., accounting for inflation)
+spendingdata <-read.csv("/Users/sally/Desktop/spendingdata.csv")
+
+4a) Make a plot showing the distribution of spending in the year 2016 (3 points)
+#filtering the 2016 spending data
+spending_2016 <- spendingdata[spendingdata$Year == 2016, ]
+
+#creating a histogram of 2016 spending
+hist(spending_2016$spending, 
+     col = "blue", 
+     main = "Distribution of Spending in 2016",
+     xlab = "Spending in 2016",
+     ylab = "Frequency")
+
+
+
+4b) Notice the (very) long right tail on spending data - we spend a lot on a very small number of species. Show the IDs of the 3 species with the most spending in 2016. (2 points)
+#2016 spending data
+spending_2016 <- spendingdata[spendingdata$Year == 2016, ]
+
+#organizing the data in descending order 
+mostspending2016 <- spending_2016[order(spending_2016$spending, decreasing = TRUE), ]
+
+#top 3 species with highest spending 
+top_3_species <- head(sorted_spending_2016$speciesid, 3)
+top_3_species
+
+
+5. Merge in the data from the conservation status data frame to the spending data frame, so that we have information on species names, taxonomic group, and conservation status with the spending data. (2 points); and use that to show the scientific names of the three species identified above.
+#merging the spending data frame with the conservation status data frame
+merged_data <- merge(spending_2016, conservationdata, by = "speciesid", all.x = TRUE)
+
+#selecting the corresponding rows
+top_3_species_data <- merged_data[merged_data$speciesid %in% top_3_species, ]
+
+#scientific names of the top 3 species
+scientificnames <- top_3_species_data$speciesname
+scientificnames
+
+
+
+Look up these scientific names - what is the common name for these species?
+
+**Oncorhynchus**
+
+6. Finally, we will use a regression to look at the relationship between spending and species taxon.
+
+Because the distribution of spending is very right-skewed, it would be a good idea to take the logarithm of spending before using it in a regression. 
+
+Remember that log(0)=infinity. That means we have to drop observations with zero spending before taking the logarithm.
+
+a) Drop the rows where spending == 0 from the data frame and then make a new column with the logarithm (log()) of spending in each year. (2 points)
+
+spending_nonzero <- spendingdata[spendingdata$spending != 0, ]
+
+#new column with log spending
+spending_nonzero$log_spending <- log(spending_nonzero$spending)
+
+Optional: Look at the distribution of the logged spending variable and see how it looks different from the plot you made in question 4a
+
+hist(spending_nonzero$log_spending, 
+     col = "red", 
+     main = "Distribution of Logged Spending", 
+     xlab = "Logged Spending")
+
+b) Run a regression of logged spending on taxonomic group and print the summary for the regression below (3 points)
+#showing the taxonomic group regression model
+reg_model <- lm(log_spending ~ speciesid, data = spending_nonzero)
+
+#printing the regression model 
+summary(reg_model)
+
+
+
+
+c) The way to interpret these coefficients are as the fractional difference in spending between the taxonomic group (e.g. Birds, Fishes etc) and the "dropped" group, where by default the dropped group will be Amphibians. Positive numbers indicate that group has more spent on it than Amphibians and negative numbers indicate it has less spent on it. 
+
+Based on your results in b, do we see statistically significant differences in spending between different taxonomic groups? If so, which kinds of species tend to have more spent on them and which have less? (1 points)
+
+**Since the coefficient for the taxonomic group is positive in 12.108544 and statistcally significant, we can conclude that there is more spending in that group compared to the amphibian** 
+
+7. Push your R markdown file to your Github repository (2 points)
